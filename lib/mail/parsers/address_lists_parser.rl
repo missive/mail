@@ -66,14 +66,11 @@ require 'mail/parser_tools'
   }
 
   # Don't set the display name until the address has actually started. This
-  # allows us to choose quoted_s version if it exists and always use the
-  # 'full' phrase version.
+  # allows us to always use the 'full' phrase version.
   action angle_addr_s {
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   }

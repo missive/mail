@@ -37,8 +37,7 @@ describe "AddressListsParser" do
     it "extracts UTF-8 local string" do
       text = '"🌈" (😁) <💌@👉.com>, 🤠:test@example.com;'
 
-      a = Mail::Parsers::AddressListsParser
-      result = a.parse(text)
+      result = Mail::AddressList.new(text)
       expect(result.addresses.size).to eq 2
 
       address = result.addresses[0]

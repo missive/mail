@@ -32067,11 +32067,9 @@ begin
 	when 3 then
 		begin
 
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   		end
@@ -32142,11 +32140,9 @@ begin
  phrase_e = p-1 		end
 		begin
 
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   		end
@@ -32235,11 +32231,9 @@ begin
   		end
 		begin
 
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   		end
@@ -32312,11 +32306,9 @@ begin
  address_s = p 		end
 		begin
 
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   		end
@@ -32483,11 +32475,9 @@ begin
  phrase_e = p-1 		end
 		begin
 
-    if qstr
-      address.display_name = Mail::Utilities.unescape(qstr)
-      qstr = nil
-    elsif phrase_e
-      address.display_name = chars(data, phrase_s, phrase_e).strip
+    qstr = nil
+    if phrase_e
+      address.display_name = Mail::Utilities.unquote(chars(data, phrase_s, phrase_e).strip)
       phrase_e = phrase_s = nil
     end
   		end

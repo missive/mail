@@ -87,6 +87,37 @@ describe Mail::Address do
     it "should decode the display name without calling #decoded first" do
       encoded = '=?ISO-8859-1?Q?Jan_Kr=FCtisch?= <jan@krutisch.de>'
       expect(Mail::Address.new(encoded).display_name).to eq 'Jan Krütisch'
+
+      encoded = '=?ISO-8859-1?Q?Ja(n_Kr=FCt)isch?= <jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'Jaisch'
+      expect(Mail::Address.new(encoded).comments).to eq ['n_Kr=FCt']
+
+      encoded = '=?ISO-8859-1?Q?Jan_Kr=FCt(isc)h?= <jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'Jan Krüth'
+      expect(Mail::Address.new(encoded).comments).to eq ['isc']
+    end
+
+    it "should decode Q-encoded display name containing double quotes" do
+      encoded = '=?ISO-8859-1?Q?"Jan_Kr=FCtisch"?= <jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'Jan Krütisch'
+      expect(Mail::Address.new(encoded).address).to eq 'jan@krutisch.de'
+
+      encoded = '=?ISO-8859-1?Q?"Jan_Kr=FCtisch"_?=<jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'Jan Krütisch'
+      expect(Mail::Address.new(encoded).address).to eq 'jan@krutisch.de'
+
+      # The following two are not explicitly desired behavior, but rather a side effect
+      # of discarding quoted-string at the AddressListsParser level because we need to
+      # do the Q-decoding (which may *surround* the quoted-string) at the Address level.
+
+      encoded = '=?ISO-8859-1?Q?Jan_Kr=FCti"s"ch?= <jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'Jan Krüti"s"ch'
+      expect(Mail::Address.new(encoded).address).to eq 'jan@krutisch.de'
+
+      encoded = '=?ISO-8859-1?Q?J(an)_Kr=FCti"s"ch?= <jan@krutisch.de>'
+      expect(Mail::Address.new(encoded).display_name).to eq 'J Krüti"s"ch'
+      expect(Mail::Address.new(encoded).address).to eq 'jan@krutisch.de'
+      expect(Mail::Address.new(encoded).comments).to eq ['an']
     end
 
     it "doesn't get stuck on decode or encode output mode" do

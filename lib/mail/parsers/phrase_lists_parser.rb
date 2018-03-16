@@ -3,6 +3,9 @@
 require 'mail/utilities'
 require 'mail/parser_tools'
 
+begin
+  original_verbose, $VERBOSE = $VERBOSE, nil
+
 
 
 
@@ -882,10 +885,14 @@ end
 
 
       if p != eof || cs < 42
-        raise Mail::Field::IncompleteParseError.new(Mail::PhraseListsElement, data, p)
+        raise Mail::Field::IncompleteParseError.new(Mail::PhraseList, data, p)
       end
 
       phrase_lists
     end
   end
+end
+
+ensure
+  $VERBOSE = original_verbose
 end

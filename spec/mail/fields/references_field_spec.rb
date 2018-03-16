@@ -43,7 +43,7 @@ describe Mail::ReferencesField do
   it "should accept no message ids" do
     t = Mail::ReferencesField.new('')
     expect(t.name).to eq 'References'
-    expect(t.decoded).to eq nil
+    expect(t.decoded).to be_nil
   end
 
   it "should output lines shorter than 998 chars" do
@@ -52,4 +52,22 @@ describe Mail::ReferencesField do
     lines.each { |line| expect(line.length).to be < 998 }
   end
 
+  it "should handle comma-separated values" do
+    t = Mail::ReferencesField.new('<1234@test.lindsaar.net>, <5678@test.lindsaar.net>')
+    expect(t.name).to eq 'References'
+    expect(t.value).to eq '<1234@test.lindsaar.net>, <5678@test.lindsaar.net>'
+    expect(t.message_id).to eq '1234@test.lindsaar.net'
+    expect(t.message_ids).to eq ['1234@test.lindsaar.net', '5678@test.lindsaar.net']
+    expect(t.to_s).to eq '<1234@test.lindsaar.net> <5678@test.lindsaar.net>'
+  end
+
+  it 'should be able to parse |2a26f8f146e27159@domain.com@domain.com, 2a26f8f146e27159@domain.com@domain.com|' do
+    m = Mail::ReferencesField.new( '2a26f8f146e27159@domain.com@domain.com, 4769770500E92399@n064.sc1.he.tucows.com' )
+    expect(m.message_ids).to eq [ '2a26f8f146e27159@domain.com@domain.com', '4769770500E92399@n064.sc1.he.tucows.com' ]
+  end
+
+  it 'should be able to parse |2a26f8f146e27159@domain.com@domain.com 2a26f8f146e27159@domain.com@domain.com|' do
+    m = Mail::ReferencesField.new( '2a26f8f146e27159@domain.com@domain.com 4769770500E92399@n064.sc1.he.tucows.com' )
+    expect(m.message_ids).to eq [ '2a26f8f146e27159@domain.com@domain.com', '4769770500E92399@n064.sc1.he.tucows.com' ]
+  end
 end

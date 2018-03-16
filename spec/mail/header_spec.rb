@@ -56,7 +56,7 @@ describe Mail::Header do
 
     it "should know its own charset" do
       header = Mail::Header.new("To: Mikel\r\nFrom: bob\r\nContent-ID: <1234@me.com>")
-      expect(header.charset).to eq nil
+      expect(header.charset).to be_nil
     end
 
     it "should know its own charset if set" do
@@ -388,27 +388,27 @@ describe Mail::Header do
     it "should handle an empty X-* header value" do
       header = Mail::Header.new("X-MS-TNEF-Correlator:\r\n")
       expect(header.fields.length).to eq 1
-      expect(header['X-MS-TNEF-Correlator'].decoded).to eq nil
+      expect(header['X-MS-TNEF-Correlator'].decoded).to be_nil
       expect(header['X-MS-TNEF-Correlator'].encoded).to eq "X-MS-TNEF-Correlator: \r\n"
     end
 
     it "should accept X- option fields from MS-Exchange" do
       header = Mail::Header.new("X-Ms-Has-Attach:\r\nX-MS-TNEF-Correlator: \r\n")
       expect(header.fields.length).to eq 2
-      expect(header['X-Ms-Has-Attach'].decoded).to eq nil
+      expect(header['X-Ms-Has-Attach'].decoded).to be_nil
       expect(header['X-Ms-Has-Attach'].encoded).to eq "X-Ms-Has-Attach: \r\n"
-      expect(header['X-MS-TNEF-Correlator'].decoded).to eq nil
+      expect(header['X-MS-TNEF-Correlator'].decoded).to be_nil
       expect(header['X-MS-TNEF-Correlator'].encoded).to eq "X-MS-TNEF-Correlator: \r\n"
     end
 
     it "should return nil if asked for the value of a non existent field" do
       header = Mail::Header.new
-      expect(header['Bobs-Field']).to eq nil
+      expect(header['Bobs-Field']).to be_nil
     end
 
     it "should allow you to replace a from field" do
       header = Mail::Header.new
-      expect(header['From']).to eq nil
+      expect(header['From']).to be_nil
       header['From'] = 'mikel@test.lindsaar.net'
       expect(header['From'].decoded).to eq 'mikel@test.lindsaar.net'
       header['From'] = 'bob@test.lindsaar.net'
@@ -437,38 +437,54 @@ describe Mail::Header do
     end
 
     it "should handle a crazy long folded header" do
-      header_text =<<HERE
+      header = Mail::Header.new(<<HERE)
 Received: from [127.0.220.158] (helo=fg-out-1718.google.com)
 	by smtp.totallyrandom.com with esmtp (Exim 4.68)
 	(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)
 	id 1K4JeQ-0005Nd-Ij
 	for support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700
 HERE
-      header = Mail::Header.new(header_text.gsub(/\n/, "\r\n"))
+
       expect(header['Received'].value).to eq "from [127.0.220.158] (helo=fg-out-1718.google.com)\tby smtp.totallyrandom.com with esmtp (Exim 4.68)\t(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)\tid 1K4JeQ-0005Nd-Ij\tfor support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700"
     end
 
     it "should convert all lonesome LFs to CRLF" do
-      header_text =<<HERE
+      header = Mail::Header.new(<<HERE)
 Received: from [127.0.220.158] (helo=fg-out-1718.google.com)
 	by smtp.totallyrandom.com with esmtp (Exim 4.68)
 	(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)
 	id 1K4JeQ-0005Nd-Ij
 	for support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700
 HERE
-      header = Mail::Header.new(header_text.gsub(/\n/, "\n"))
+
       expect(header['Received'].value).to eq "from [127.0.220.158] (helo=fg-out-1718.google.com)\tby smtp.totallyrandom.com with esmtp (Exim 4.68)\t(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)\tid 1K4JeQ-0005Nd-Ij\tfor support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700"
     end
 
-    it "should convert all lonesome CRs to CRLF" do
-      header_text =<<HERE
+    if RUBY_VERSION >= '1.9'
+      it "should convert all lonesome LFs to CRLF in UTF-8 too" do
+        header = Mail::Header.new(<<HERE)
+Subject: Iñtërnâtiônàlizætiøn
 Received: from [127.0.220.158] (helo=fg-out-1718.google.com)
 	by smtp.totallyrandom.com with esmtp (Exim 4.68)
 	(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)
 	id 1K4JeQ-0005Nd-Ij
 	for support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700
 HERE
-      header = Mail::Header.new(header_text.gsub(/\n/, "\r"))
+
+        expect(header['Received'].value).to eq "from [127.0.220.158] (helo=fg-out-1718.google.com)\tby smtp.totallyrandom.com with esmtp (Exim 4.68)\t(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)\tid 1K4JeQ-0005Nd-Ij\tfor support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700"
+      end
+    end
+
+
+    it "should convert all lonesome CRs to CRLF" do
+      header = Mail::Header.new(<<HERE.gsub(/\n/, "\r"))
+Received: from [127.0.220.158] (helo=fg-out-1718.google.com)
+	by smtp.totallyrandom.com with esmtp (Exim 4.68)
+	(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)
+	id 1K4JeQ-0005Nd-Ij
+	for support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700
+HERE
+
       expect(header['Received'].value).to eq "from [127.0.220.158] (helo=fg-out-1718.google.com)\tby smtp.totallyrandom.com with esmtp (Exim 4.68)\t(envelope-from <stuff+caf_=support=aaa.somewhere.com@gmail.com>)\tid 1K4JeQ-0005Nd-Ij\tfor support@aaa.somewhere.com; Thu, 05 Jun 2008 10:53:29 -0700"
     end
 
@@ -527,7 +543,7 @@ HERE
       header['X-Mail-SPAM'] = '10000'
       expect(header['X-Mail-SPAM'].map { |x| x.value }).to eq ['15', '20', '10000']
       header['X-Mail-SPAM'] = nil
-      expect(header['X-Mail-SPAM']).to eq nil
+      expect(header['X-Mail-SPAM']).to be_nil
     end
   end
 
@@ -615,7 +631,7 @@ TRACEHEADER
 
     it "should return nil if no mime-version header field" do
       header = Mail::Header.new('To: bob')
-      expect(header['mime_version']).to eq nil
+      expect(header['mime_version']).to be_nil
     end
 
     it "should return the transfer-encoding of the email" do
@@ -625,7 +641,7 @@ TRACEHEADER
 
     it "should return nil if no transfer-encoding header field" do
       header = Mail::Header.new
-      expect(header['content-transfer-encoding']).to eq nil
+      expect(header['content-transfer-encoding']).to be_nil
     end
 
     it "should return the content-description of the email" do
@@ -635,7 +651,7 @@ TRACEHEADER
 
     it "should return nil if no content-description header field" do
       header = Mail::Header.new
-      expect(header['Content-Description']).to eq nil
+      expect(header['Content-Description']).to be_nil
     end
 
   end

@@ -122,24 +122,11 @@ describe Mail::Message do
       read_fixture('emails', 'error_emails', 'must_supply_encoding.eml')
     end
 
-    it "should be able to parse every email example we have without raising an exception" do
-      emails = Dir.glob( fixture_path('emails/**/*') ).delete_if { |f| File.directory?(f) }
-
-      allow(Kernel).to receive(:warn) # Don't want to get noisy about any warnings
-      errors = false
-      expected_failures = []
-      emails.each do |email|
-        begin
-          Mail.read(email)
-        rescue => e
-          unless expected_failures.include?(email)
-            puts "Failed on email #{email}"
-            puts "Failure was:\n#{e}\n\n"
-            errors = true
-          end
-        end
+    Dir.glob(fixture_path('emails/**/*.eml')).each do |path|
+      it "parses #{path} fixture" do
+        allow(Kernel).to receive(:warn) # Don't want to get noisy about any warnings
+        expect { Mail.read(path) }.to_not raise_error
       end
-      expect(errors).to be_falsey
     end
 
     it "should be able to parse a large email without raising an exception" do
@@ -544,7 +531,7 @@ describe Mail::Message do
 
       it "should allow you to replace a from field" do
         mail = Mail.new
-        expect(mail.from).to eq nil
+        expect(mail.from).to be_nil
         mail.from = 'mikel@test.lindsaar.net'
         expect(mail.from).to eq ['mikel@test.lindsaar.net']
         mail.from = 'bob@test.lindsaar.net'
@@ -978,33 +965,33 @@ describe Mail::Message do
 
   describe "making a copy of a message with dup" do
     def message_should_have_default_values(message)
-      expect(message.bcc).to           eq nil
-      expect(message.cc).to            eq nil
-      expect(message.comments).to      eq nil
-      expect(message.date).to          eq nil
-      expect(message.from).to          eq nil
-      expect(message.in_reply_to).to   eq nil
-      expect(message.keywords).to      eq nil
-      expect(message.message_id).to    eq nil
-      expect(message.received).to      eq nil
-      expect(message.references).to    eq nil
-      expect(message.reply_to).to      eq nil
-      expect(message.resent_bcc).to    eq nil
-      expect(message.resent_cc).to     eq nil
-      expect(message.resent_date).to   eq nil
-      expect(message.resent_from).to   eq nil
-      expect(message.resent_message_id).to eq nil
-      expect(message.resent_sender).to eq nil
-      expect(message.resent_to).to     eq nil
-      expect(message.sender).to        eq nil
-      expect(message.subject).to       eq nil
-      expect(message.to).to            eq nil
-      expect(message.content_type).to              eq nil
-      expect(message.content_transfer_encoding).to eq nil
-      expect(message.content_description).to       eq nil
-      expect(message.content_disposition).to       eq nil
-      expect(message.content_id).to                eq nil
-      expect(message.mime_version).to              eq nil
+      expect(message.bcc).to           be_nil
+      expect(message.cc).to            be_nil
+      expect(message.comments).to      be_nil
+      expect(message.date).to          be_nil
+      expect(message.from).to          be_nil
+      expect(message.in_reply_to).to   be_nil
+      expect(message.keywords).to      be_nil
+      expect(message.message_id).to    be_nil
+      expect(message.received).to      be_nil
+      expect(message.references).to    be_nil
+      expect(message.reply_to).to      be_nil
+      expect(message.resent_bcc).to    be_nil
+      expect(message.resent_cc).to     be_nil
+      expect(message.resent_date).to   be_nil
+      expect(message.resent_from).to   be_nil
+      expect(message.resent_message_id).to be_nil
+      expect(message.resent_sender).to be_nil
+      expect(message.resent_to).to     be_nil
+      expect(message.sender).to        be_nil
+      expect(message.subject).to       be_nil
+      expect(message.to).to            be_nil
+      expect(message.content_type).to              be_nil
+      expect(message.content_transfer_encoding).to be_nil
+      expect(message.content_description).to       be_nil
+      expect(message.content_disposition).to       be_nil
+      expect(message.content_id).to                be_nil
+      expect(message.mime_version).to              be_nil
       expect(message.body.to_s).to          eq ''
     end
 
@@ -1405,6 +1392,25 @@ describe Mail::Message do
 
       end
 
+      it "rfc2046 can be decoded" do
+        mail = Mail.new
+        mail.body << Mail::Part.new.tap do |part|
+          part.content_disposition = 'attachment; filename="test.eml"'
+          part.content_type = 'message/rfc822'
+          part.body = "This is NOT plain text ASCII　− かきくけこ" * 30
+        end
+
+        roundtripped = Mail.new(mail.encoded)
+        expect(roundtripped.content_transfer_encoding).to eq '7bit'
+        expect(roundtripped.parts.last.content_transfer_encoding).to eq ''
+
+        # Check that the part's transfer encoding isn't set to 7bit, causing
+        # the actual content to end up encoded with base64.
+        expect(roundtripped.encoded).to include('NOT plain')
+        expect(roundtripped.content_transfer_encoding).to eq '7bit'
+        expect(roundtripped.parts.last.content_transfer_encoding).to eq ''
+      end
+
       # https://www.ietf.org/rfc/rfc2046.txt
       # No encoding other than "7bit", "8bit", or "binary" is permitted for
       # the body of a "message/rfc822" entity.
@@ -1419,6 +1425,24 @@ describe Mail::Message do
         
         expect(mail.parts.count).to eq(1)
         expect(mail.parts.last.content_transfer_encoding).to match(/7bit|8bit|binary/)
+      end
+
+      describe "convert_to_multipart" do
+        subject do
+          read_fixture('emails', 'attachment_emails', 'attachment_only_email.eml').tap(&:convert_to_multipart)
+        end
+
+        it "original content headers move to the new part" do
+          expect(subject.header[:content_type]).to be_nil
+          expect(subject.header[:content_disposition]).to be_nil
+          expect(subject.header[:content_description]).to be_nil
+          expect(subject.header[:content_transfer_encoding]).to be_nil
+
+          expect(subject.parts[0].header[:content_type].value).to eq("application/x-gzip; NAME=blah.gz")
+          expect(subject.parts[0].header[:content_disposition].value).to eq("attachment; filename=blah.gz")
+          expect(subject.parts[0].header[:content_description].value).to eq("Attachment has identical content to above foo.gz")
+          expect(subject.parts[0].header[:content_transfer_encoding].value).to eq("base64")
+        end
       end
 
       describe "content-transfer-encoding" do
@@ -1579,6 +1603,10 @@ describe Mail::Message do
       expect(message.text?).to eq true
     end
 
+    it "inspect_structure should return the same as inspect (no attachments)" do
+      expect(message.inspect_structure).to eq message.inspect
+    end
+
     if RUBY_VERSION > "1.9"
       it "uses the Ruby19 charset encoder" do
         with_encoder(Mail::Ruby19::BestEffortCharsetEncoder.new) do
@@ -1614,19 +1642,23 @@ describe Mail::Message do
       it "should ignore the message id value if self has a nil message id" do
         m1 = Mail.new("To: mikel@test.lindsaar.net\r\nSubject: Yo!\r\n\r\nHello there")
         m2 = Mail.new("To: mikel@test.lindsaar.net\r\nMessage-ID: <1234@test.lindsaar.net>\r\nSubject: Yo!\r\n\r\nHello there")
-        expect(m1).to eq m2
+
         # confirm there are no side-effects in the comparison
         expect(m1[:message_id]).to be_nil
         expect(m2[:message_id].value).to eq '<1234@test.lindsaar.net>'
+
+        expect(m1).to eq m2
       end
 
       it "should ignore the message id value if other has a nil message id" do
         m1 = Mail.new("To: mikel@test.lindsaar.net\r\nMessage-ID: <1234@test.lindsaar.net>\r\nSubject: Yo!\r\n\r\nHello there")
         m2 = Mail.new("To: mikel@test.lindsaar.net\r\nSubject: Yo!\r\n\r\nHello there")
-        expect(m1).to eq m2
+
         # confirm there are no side-effects in the comparison
         expect(m1[:message_id].value).to eq '<1234@test.lindsaar.net>'
         expect(m2[:message_id]).to be_nil
+
+        expect(m1).to eq m2
       end
 
       it "should not be == if both emails have different Message IDs" do
@@ -1935,16 +1967,21 @@ describe Mail::Message do
 
   describe "without_attachments!" do
     it "should delete all attachments" do
-      emails_with_attachments = ['content_disposition', 'content_location',
-                                 'pdf', 'with_encoded_name', 'with_quoted_filename']
+      emails_with_attachments = [
+        ['attachment_emails', 'attachment_content_disposition.eml'],
+        ['attachment_emails', 'attachment_content_location.eml'],
+        ['attachment_emails', 'attachment_pdf.eml'],
+        ['attachment_emails', 'attachment_with_encoded_name.eml'],
+        ['attachment_emails', 'attachment_with_quoted_filename.eml'],
+        ['mime_emails', 'raw_email7.eml']]
 
-      emails_with_attachments.each { |email|
-        mail = read_fixture('emails', 'attachment_emails', "attachment_#{email}.eml")
-        non_attachment_parts = mail.parts.reject(&:attachment?)
+      emails_with_attachments.each { |file_name|
+        mail = read_fixture('emails', *file_name)
+        non_attachment_parts = mail.all_parts.reject(&:attachment?)
         expect(mail.has_attachments?).to be_truthy
         mail.without_attachments!
 
-        expect(mail.parts).to eq non_attachment_parts
+        expect(mail.all_parts).to eq non_attachment_parts
         expect(mail.has_attachments?).to be_falsey
       }
     end
@@ -1970,8 +2007,8 @@ describe Mail::Message do
         expect(@mail.reply.references).to eq '6B7EC235-5B17-4CA8-B2B8-39290DEB43A3@test.lindsaar.net'
       end
 
-      it "should RE: the original subject" do
-        expect(@mail.reply.subject).to eq 'RE: Testing 123'
+      it "should Re: the original subject" do
+        expect(@mail.reply.subject).to eq 'Re: Testing 123'
       end
 
       it "should be sent to the original sender" do
@@ -2032,7 +2069,7 @@ describe Mail::Message do
         expect(@mail.reply[:references].message_ids).to eq ['473FF3B8.9020707@xxx.org', '348F04F142D69C21-291E56D292BC@xxxx.net', '473FFE27.20003@xxx.org']
       end
 
-      it "should not append another RE:" do
+      it "should not append another Re:" do
         expect(@mail.reply.subject).to eq "Re: Test reply email"
       end
 

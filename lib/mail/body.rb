@@ -39,9 +39,9 @@ module Mail
       else
         # Do join first incase we have been given an Array in Ruby 1.9
         if string.respond_to?(:join)
-          @raw_source = string.join('')
+          @raw_source = ::Mail::Utilities.to_crlf(string.join(''))
         elsif string.respond_to?(:to_s)
-          @raw_source = string.to_s
+          @raw_source = ::Mail::Utilities.to_crlf(string.to_s)
         else
           raise "You can only assign a string or an object that responds_to? :join or :to_s to a body."
         end
@@ -154,7 +154,13 @@ module Mail
         ([preamble] + encoded_parts).join(crlf_boundary) + end_boundary + epilogue.to_s
       else
         dec = Mail::Encodings.get_encoding(encoding)
-        enc = negotiate_best_encoding(transfer_encoding)
+        enc =
+          if Utilities.blank?(transfer_encoding)
+            dec
+          else
+            negotiate_best_encoding(transfer_encoding)
+          end
+
         if dec.nil?
           # Cannot decode, so skip normalization
           raw_source

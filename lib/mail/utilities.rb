@@ -1,18 +1,15 @@
 # encoding: utf-8
 # frozen_string_literal: true
 require 'mail/constants'
+require 'socket'
 
 module Mail
   module Utilities
-
-    LF   = "\n"
-    CRLF = "\r\n"
-
-    include Constants
+    extend self
 
     # Returns true if the string supplied is free from characters not allowed as an ATOM
     def atom_safe?( str )
-      not ATOM_UNSAFE === str
+      not Constants::ATOM_UNSAFE === str
     end
 
     # If the string supplied has ATOM unsafe characters in it, will return the string quoted
@@ -24,28 +21,38 @@ module Mail
     # If the string supplied has PHRASE unsafe characters in it, will return the string quoted
     # in double quotes, otherwise returns the string unmodified
     def quote_phrase( str )
-      if RUBY_VERSION >= '1.9'
+      if str.respond_to?(:force_encoding)
         original_encoding = str.encoding
-        ascii_str = str.dup.force_encoding('ASCII-8BIT')
-        if (PHRASE_UNSAFE === ascii_str)
+        ascii_str = str.to_s.dup.force_encoding('ASCII-8BIT')
+        if Constants::PHRASE_UNSAFE === ascii_str
           dquote(ascii_str).force_encoding(original_encoding)
         else
           str
         end
       else
-        (PHRASE_UNSAFE === str) ? dquote(str) : str
+        Constants::PHRASE_UNSAFE === str ? dquote(str) : str
       end
     end
 
     # Returns true if the string supplied is free from characters not allowed as a TOKEN
     def token_safe?( str )
-      not TOKEN_UNSAFE === str
+      not Constants::TOKEN_UNSAFE === str
     end
 
     # If the string supplied has TOKEN unsafe characters in it, will return the string quoted
     # in double quotes, otherwise returns the string unmodified
     def quote_token( str )
-      token_safe?( str ) ? str : dquote(str)
+      if str.respond_to?(:force_encoding)
+        original_encoding = str.encoding
+        ascii_str = str.to_s.dup.force_encoding('ASCII-8BIT')
+        if token_safe?( ascii_str )
+          str
+        else
+          dquote(ascii_str).force_encoding(original_encoding)
+        end
+      else
+        token_safe?( str ) ? str : dquote(str)
+      end
     end
 
     # Wraps supplied string in double quotes and applies \-escaping as necessary,
@@ -79,7 +86,6 @@ module Mail
         str
       end
     end
-    module_function :unquote
 
     # Removes any \-escaping.
     #
@@ -93,7 +99,6 @@ module Mail
     def unescape( str )
       str.gsub(/\\(.)/, '\1')
     end
-    module_function :unescape
 
     # Wraps a string in parenthesis and escapes any that are in the string itself.
     #
@@ -197,7 +202,7 @@ module Mail
     #  string = :resent_from_field
     #  dasherize( string ) #=> 'resent-from-field'
     def dasherize( str )
-      str.to_s.tr(UNDERSCORE, HYPHEN)
+      str.to_s.tr(Constants::UNDERSCORE, Constants::HYPHEN)
     end
 
     # Swaps out all hyphens (-) for underscores (_) good for stringing to symbols
@@ -208,7 +213,7 @@ module Mail
     #  string = :resent_from_field
     #  underscoreize ( string ) #=> 'resent_from_field'
     def underscoreize( str )
-      str.to_s.downcase.tr(HYPHEN, UNDERSCORE)
+      str.to_s.downcase.tr(Constants::HYPHEN, Constants::UNDERSCORE)
     end
 
     if RUBY_VERSION <= '1.8.6'
@@ -241,45 +246,35 @@ module Mail
 
     end
 
-    # Test String#encode works correctly with line endings.
-    # Some versions of Ruby (e.g. MRI <1.9, JRuby, Rubinius) line ending
-    # normalization does not work correctly or did not have #encode.
-    if ("\r".encode(:universal_newline => true) rescue nil) == LF &&
-      (LF.encode(:crlf_newline => true) rescue nil) == CRLF
-      # Using String#encode is better performing than Regexp
+    def self.binary_unsafe_to_lf(string) #:nodoc:
+      string.gsub(/\r\n|\r/, Constants::LF)
+    end
 
-      def self.binary_unsafe_to_lf(string) #:nodoc:
-        string.encode(string.encoding, :universal_newline => true)
+    TO_CRLF_REGEX =
+      if RUBY_VERSION >= '1.9'
+        # This 1.9 only regex can save a reasonable amount of time (~20%)
+        # by not matching "\r\n" so the string is returned unchanged in
+        # the common case.
+        Regexp.new("(?<!\r)\n|\r(?!\n)")
+      else
+        /\n|\r\n|\r/
       end
 
-      def self.binary_unsafe_to_crlf(string) #:nodoc:
-        string.encode(string.encoding, :universal_newline => true).encode!(string.encoding, :crlf_newline => true)
-      end
+    def self.binary_unsafe_to_crlf(string) #:nodoc:
+      string.gsub(TO_CRLF_REGEX, Constants::CRLF)
+    end
 
+    if RUBY_VERSION < '1.9'
       def self.safe_for_line_ending_conversion?(string) #:nodoc:
         string.ascii_only?
       end
     else
-      def self.binary_unsafe_to_lf(string) #:nodoc:
-        string.gsub(/\r\n|\r/, LF)
-      end
-
-      TO_CRLF_REGEX =
-        if RUBY_VERSION >= '1.9'
-          # This 1.9 only regex can save a reasonable amount of time (~20%)
-          # by not matching "\r\n" so the string is returned unchanged in
-          # the common case.
-          Regexp.new("(?<!\r)\n|\r(?!\n)")
-        else
-          /\n|\r\n|\r/
-        end
-
-      def self.binary_unsafe_to_crlf(string) #:nodoc:
-        string.gsub(TO_CRLF_REGEX, CRLF)
-      end
-
       def self.safe_for_line_ending_conversion?(string) #:nodoc:
-        string.ascii_only?
+        if string.encoding == Encoding::BINARY
+          string.ascii_only?
+        else
+          string.valid_encoding?
+        end
       end
     end
 
@@ -311,7 +306,7 @@ module Mail
     # and arrays and hashes that have nothing in them.
     #
     # This logic is mostly shared with ActiveSupport's blank?
-    def self.blank?(value)
+    def blank?(value)
       if value.kind_of?(NilClass)
         true
       elsif value.kind_of?(String)
@@ -319,6 +314,10 @@ module Mail
       else
         value.respond_to?(:empty?) ? value.empty? : !value
       end
+    end
+
+    def generate_message_id
+      "<#{Mail.random_tag}@#{::Socket.gethostname}.mail>"
     end
   end
 end
